@@ -33,7 +33,8 @@ module CPU(
     input  [31:0] data_out
 );
 
-	reg [31:0]four = 4;
+	reg [31:0] four = 4;
+	reg [31:0] zero = 0;
 	// basic net
 	wire [4:0]rs1;
 	wire [4:0]rs2;
@@ -212,6 +213,15 @@ module CPU(
 	assign data_in = rs2_data;
 
 	assign instr_read = 1;
+
+
+
+
+
+
+
+
+
 	// pipe start
 	// IF net begin
 		// hazard ctrl net begin
@@ -226,16 +236,27 @@ module CPU(
 	wire [31:0] pcout;
 	wire [31:0] no_hazard_pcout;
 	reg [31:0] four = 4;
+	reg [31:0] zero = 0;
 	wire BranchCtrl;
 	wire [31:0] branch_mux_src1;
 	wire [31:0] branch_mux_src2;
 	wire [31:0] branch_mux_src3;
-	wire instr_out_after_mux;
+	wire [31:0] instr_out_after_mux;
 	// IF net end
 	// ID net begin
 		// control unit net begin
-
+		wire ID_RegWrite;
+		wire [2:0]ID_ALUop;
+		wire ID_ALUsrc;
+		wire [1:0] ID_branchCtrl;
+		wire ID_PCtoRegSrc;
+		wire ID_RDsrc;
+		wire ID_MRead;
+		wire ID_MWrite;
+		wire ID_MenToReg;
+		wire [2:0] ID_ImmType;
 		// control unit net end
+	wire [31:0] ID_instr_out;
 	wire [4:0] ID_rs1;
 	wire [4:0] ID_rs2;
 	wire [4:0] ID_rd;
@@ -247,16 +268,228 @@ module CPU(
 	wire [31:0] ID_pc;
 	wire [31:0] ID_rs1_data;
 	wire [31:0] ID_rs2_data;
-	wire [31:0] ID_imm
+	wire [31:0] ID_imm;
+	wire [31:0] ID_imm_after_shift_check;
+	wire [31:0] ID_rs2_after_shift_check;
+	wire [31:0] ID_rs1_after_cmp_unit;
+	wire [31:0] ID_rs2_after_cmp_unit;
+	wire [31:0] ID_pre_next_pc_adder;
+	wire takeBranch;
 	// ID net end
+	// EX net begin
+		// control net begin
+		wire EX_RegWrite;
+		wire [2:0] EX_ALUop;
+		wire EX_ALUsrc;
+		wire [1:0] EX_branchCtrl;
+		wire EX_PCtoRegSrc;
+		wire EX_RDsrc;
+		wire EX_MRead;
+		wire EX_MWrite;
+		wire EX_MenToReg;
+		wire [2:0] EX_ImmType;
+		// control net end
+		// forward unit net begin
+		wire forward_rs1_src;
+		wire forward_rs2_src;
+		// forward unit net end
+		// ALU ctrl net begin
+		wire [3:0] EX_alu_ctrl;
+		// ALU ctrl net end
+	wire EX_RegWrite_after_mux;
+	wire [2:0] EX_ALUop_after_mux;
+	wire EX_ALUsrc_after_mux;
+	wire [1:0] EX_branchCtrl_after_mux;
+	wire EX_PCtoRegSrc_after_mux;
+	wire EX_RDsrc_after_mux;
+	wire EX_MRead_after_mux;
+	wire EX_MWrite_after_mux;
+	wire EX_MenToReg_after_mux;
+	wire [31:0] EX_pc;
+	wire [31:0] EX_rs1_data;
+	wire [31:0] EX_rs2_data;
+	wire [31:0] EX_imm;
+	wire [2:0] EX_func3;
+	wire [6:0] EX_func7;
+	wire [4:0] EX_rd_addr;
+	wire [4:0] EX_rs1_addr;
+	wire [4:0] EX_rs2_addr;
+	wire [31:0] WB_rd_data;
+	wire [31:0] MEM_rd_data;
+	wire [31:0] EX_imm;
+	wire [31:0] EX_pc_to_reg;
+	wire [31:0] EX_alu_out;
+		// mux and adder net begin
+		wire [31:0] EX_adder1_out;
+		wire [31:0] EX_adder2_out;
+		wire [31:0] EX_mux1_out;
+		wire [31:0] EX_mux2_out;
+		wire [31:0] EX_mux3_out;
+		wire [31:0] EX_mux4_out;
+		// mux and adder net end
+	wire EX_zero_flag;
+	// EX net end
+	// MEM net begin
+		// control net begin
+		wire MEM_RDsrc;
+		wire MEM_memRead;
+		wire MEM_memWrite;
+		// control net end
+		// forward unit begin
+		wire forward_rd_src;
+		// forward unit end
+	wire [31:0] MEM_forward_rs2_data;
+	wire [31:0] MEM_alu_out;
+	wire [31:0] MEM_pc_to_reg;
+	wire [31:0] MEM_rd_data;
+	wire [4:0] MEM_rd_addr;
+	// MEM net end
+	// WB net begin
+	wire [31:0] WB_rd_data;
+	wire [31:0] WB_data_out;
+	wire [31:0] WB_mux_out;
+	wire WB_MenToReg;
+	wire WB_regWrite;
+	// WB net end
 
 	// connect module begin
+	// IF begin
 	PC pc_counter(
 		.clk(clk),
 		.rst(rst),
 		.PCWrite(PCWrite),
 		.pcin(pcin),
-		.pcout(pcout));
+		.pcout(pcout)
+	);
+
+	Mux2to1 pre_pc_mux(
+		.in1(no_hazard_pcout),
+		.in2(ID_pre_next_pc_adder),
+		.select(targetPC),
+		.out(pcin)
+	);
+
+	Mux2to1 IF_instr_mux(
+		.in1(instr_out),
+		.in2(zero),
+		.select(hazard_ctrl_flush_instr),
+		.out(instr_out_after_mux)
+	);
+
+	Adder IF_adder(
+		.src1(four),
+		.src2(pcout),
+		.out(branch_mux_src3)
+	);
+
+	HazardCtrl hazard_control(
+    	.op(ID_op),
+    	.IDEX_rt(EX_rd_addr),
+    	.IFID_rs(ID_rs1),
+    	.IFID_rt(ID_rs2),
+    	.IDEX_memRead(EX_MRead),
+    	.takeBranch(takeBranch),
+    	.PCWrite(PCWrite),
+    	.IFID_reg_write(IFID_regWrite),
+    	.instr_flush(hazard_ctrl_flush_instr),
+    	.ctrl_flush(hazard_ctrl_flush_ctrl),
+    	.targetPC(targetPC)
+	);
+
+	IFID_reg IFIFreg(
+    	.clk(clk),
+    	.IFID_RegWrite(IFID_regWrite),
+    	.pc_in(pcout),
+    	.instr_in(instr_out_after_mux),
+    	.pc_out(ID_pc),
+    	.instr_out(ID_instr_out)
+	);
+	// IF end
+
+	// ID begin
+	assign ID_rs1 = ID_instr_out[19:15];
+	assign ID_rs2 = ID_instr_out[24:20];
+	assign ID_rd = ID_instr_out[11:7];
+	assign ID_op = ID_instr_out[6:0];
+	assign ID_func3 = ID_instr_out[14:12];
+	assign ID_func7 = ID_instr_out[31:25];
+
+	ImmGene imm_gene(
+		.immType(ID_ImmType),
+		.instr(ID_instr_out),
+		.immOut(ID_imm)
+	);
+
+	Shift_check shfc(
+		.rs2_data(ID_rs2_data),
+		.imm(ID_imm),
+		.alu_src(ID_ALUsrc),
+		.op(ID_op),
+		.func3(ID_func3),
+		.new_rs2(ID_rs2_after_shift_check),
+		.new_imm(ID_imm_after_shift_check)
+	);
+
+	cmp_unit cmpunit(
+    	.src1(ID_rs1_data),
+    	.src2(ID_rs2_after_shift_check),
+    	.op(ID_op),
+    	.func3(ID_func3),
+    	.src1_out(ID_rs1_after_cmp_unit),
+    	.src2_out(ID_rs2_after_cmp_unit),
+    	.takeBranch(takeBranch)
+	);
+
+	Decoder controlunit(
+		.op(ID_op),
+		.RegWrite(ID_RegWrite),
+		.ALUop(ID_ALUop),
+		.ALUsrc(ID_ALUsrc),
+		.branchCtrl(ID_branchCtrl),
+		.PCtoRegSrc(ID_PCtoRegSrc),
+		.RDsrc(ID_RDsrc),
+		.MRead(ID_MRead),
+		.MWrite(ID_MWrite),
+		.MenToReg(ID_MenToReg),
+		.ImmType(ID_ImmType)
+	);
+		
+	Ctrl_mux ctrl_mux(
+    	.flush(hazard_ctrl_flush_ctrl),
+    	.PCtoRegSrc_in(EX_PCtoRegSrc),
+    	.branchCtrl_in(EX_branchCtrl),
+    	.aluop_in(EX_ALUop),
+    	.alusrc_in(EX_ALUsrc),
+    	.regWrite_in(EX_RegWrite),
+    	.rdsrc_in(EX_RDsrc),
+    	.memRead_in(EX_MRead),
+    	.memWrite_in(EX_MWrite),
+    	.memToReg_in(EX_MenToReg),
+    	.PCtoRegSrc_out(EX_PCtoRegSrc_after_mux),
+    	.branchCtrl_out(EX_branchCtrl_after_mux),
+    	.aluop_out(EX_ALUop_after_mux),
+    	.alusrc_out(EX_ALUsrc_after_mux),
+    	.regWrite_out(EX_RegWrite_after_mux),
+    	.rdsrc_out(EX_RDsrc_after_mux),
+    	.memRead_out(EX_MRead_after_mux),
+    	.memWrite_out(EX_MWrite_after_mux),
+    	.memToReg_out(EX_MenToReg_after_mux)
+	);
+	
+	RegFile registerFile(
+		.clk(clk),
+		.rs1_addr(ID_rs1),
+		.rs2_addr(ID_rs2),
+		.rd_addr(WB_rd_addr),
+		.regWrite(WB_regWrite),
+		.rd_data(WB_rd_data),
+		.rs1_data(ID_rs1_data),
+		.rs2_data(ID_rs2_data),
+		.op(ID_op),
+		.pc(ID_pc)
+	);
+	// ID end
+
 	//connect module end
 
 	// pipe end

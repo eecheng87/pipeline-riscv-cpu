@@ -4,6 +4,7 @@ module HazardCtrl(
     input [4:0] IFID_rs,
     input [4:0] IFID_rt,
     input IDEX_memRead,
+    input takeBranch,
     output reg PCWrite,
     output reg IFID_reg_write,
     output reg instr_flush,
@@ -20,7 +21,7 @@ module HazardCtrl(
             IFID_reg_write = 0;
             PCWrite = 0;
             targetPC = 0;
-        end else if(op==7'b1100011||op==7'b1101111)begin
+        end else if(takeBranch==1&&(op==7'b1100011||op==7'b1101111))begin
             // branch hazard
             // JAL hazard
             targetPC = 1;

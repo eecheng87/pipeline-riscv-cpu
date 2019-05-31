@@ -9,7 +9,6 @@ module BigALU(
 		case(alu_ctrl)
 			4'b0000:alu_out=src1&src2;
 			4'b0001:alu_out=src1|src2;	
-				//$display("%b %b %b",alu_out,src1,src2); end
 			4'b0010:alu_out=src1+src2;
 			4'b0110:alu_out=src1-src2;
 			4'b0111:alu_out=$signed(src1)<$signed(src2)?32'b1:0;
