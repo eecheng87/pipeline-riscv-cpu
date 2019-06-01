@@ -33,195 +33,8 @@ module CPU(
     input  [31:0] data_out
 );
 
-	reg [31:0] four = 4;
-	reg [31:0] zero = 0;
-	// basic net
-	wire [4:0]rs1;
-	wire [4:0]rs2;
-	wire [4:0]rd;
-	wire [6:0]op;
-	wire [2:0]func3;
-	wire [6:0]func7;
-	// pc net
- 	wire [31:0]pcin;
-	wire [31:0]pcout;
-
-	// decoder net
-	wire RegWrite;
-	wire [2:0]ALUop;
-	wire ALUsrc;
-	wire[1:0]branchCtrl;
-	wire PCtoRegSrc;
-	wire RDsrc;
-	wire MRead;
-	wire MWrite;
-	wire MenToReg;
-	wire [2:0]ImmType;
-
-	// immediate net
-	wire [31:0]imm;
-
-	// ALU ctrl net
-	wire [3:0]alu_ctrl;
-
-	// Register File net
-	wire [31:0]rs1_data;
-	wire [31:0]rs2_data;
-	wire [31:0]rd_data;
-
-	// big alu net
-	wire [31:0] big_alu_in1;
-	wire [31:0] big_alu_in2;
-	wire [31:0] alu_out;
-	wire zero;
-
-	// mux net
-	wire [31:0] pc_to_reg;
-	wire [31:0] add1_out;
-	wire [31:0] add2_out;
-	wire [31:0] add3_out;
-	wire [31:0] pc_or_alu_out;
-
-	// branch ctrl net
-	wire [1:0] BranchCTRL;
-	
-
-	// check wire
-	wire [31:0] new_rs2;
-	wire [31:0] new_imm;
-
-	PC pc_counter(
-		.clk(clk),
-		.rst(rst),
-		.pcin(pcin),
-		.pcout(pcout));
-
-	Decoder decoder(
-		.op(op),
-		.RegWrite(RegWrite),
-		.ALUop(ALUop),
-		.ALUsrc(ALUsrc),
-		.branchCtrl(branchCtrl),
-		.PCtoRegSrc(PCtoRegSrc),
-		.RDsrc(RDsrc),
-		.MRead(MRead),
-		.MWrite(MWrite),
-		.MenToReg(MenToReg),
-		.ImmType(ImmType));
-	
-	ImmGene imm_gene(
-		.immType(ImmType),
-		.instr(instr_out),
-		.immOut(imm));
-
-	ALU_ctrl ALUctrl(
-		.func3(func3),
-		.func7(func7),
-		.alu_op(ALUop),
-		.alu_ctrl(alu_ctrl));
-
-	BigALU big_alu(
-		.src1(big_alu_in1),
-		.src2(big_alu_in2),
-		.alu_ctrl(alu_ctrl),
-		.zero(zero),
-		.alu_out(alu_out));
-
-	Shift_check shfc(
-		.rs2_data(rs2_data),
-		.imm(imm),
-		.alu_src(ALUsrc),
-		.op(op),
-		.func3(func3),
-		.new_rs2(new_rs2),
-		.new_imm(new_imm));
-
-	Mux2to1 mux2to1_1(
-		.in1(add1_out),
-		.in2(add2_out),
-		.select(PCtoRegSrc),
-		.out(pc_to_reg));
-
-	Mux2to1 mux2to1_2(
-		.in1(new_rs2),
-		.in2(new_imm),
-		.select(ALUsrc),
-		.out(big_alu_in2));
-
-	Mux2to1 mux2to1_3(
-		.in1(pc_to_reg),
-		.in2(alu_out),
-		.select(RDsrc),
-		.out(pc_or_alu_out));
-
-	Mux2to1 mux2to1_4(
-		.in1(pc_or_alu_out),
-		.in2(data_out),
-		.select(MenToReg),
-		.out(rd_data));
-
-	Adder add1(
-		.src1(pcout),
-		.src2(imm),
-		.out(add1_out));
-
-	Adder add2(
-		.src1(pcout),
-		.src2(four),
-		.out(add2_out));
-
-	Adder add3(
-		.src1(four),
-		.src2(pcout),
-		.out(add3_out));
-
-	BranchCtrl b_ctrl( 
-		.func3(func3),
-		.zero(zero),
-		.btype(branchCtrl),
-		.alu_out(alu_out),
-		.b_ctrl(BranchCTRL));
-
-	Mux3to1 mux3to1(
-		.in1(alu_out),
-		.in2(add1_out),
-		.in3(add3_out),
-		.select(BranchCTRL),
-		.out(pcin));
-
-	RegFile registerFile(
-		.clk(clk),
-		.rs1_addr(rs1),
-		.rs2_addr(rs2),
-		.rd_addr(rd),
-		.regWrite(RegWrite),
-		.rd_data(rd_data),
-		.rs1_data(rs1_data),
-		.rs2_data(rs2_data),.op(op),.t(func3),.pc(instr_out));
-
-	assign rs1 = instr_out[19:15];
-	assign rs2 = instr_out[24:20];
-	assign rd = instr_out[11:7];
-	assign op = instr_out[6:0];
-	assign func3 = instr_out[14:12];
-	assign func7 = instr_out[31:25];
-	assign big_alu_in1 = rs1_data;
-	assign instr_addr = pcout;
-	assign data_read = MRead;
-	assign data_write = MWrite;
-	assign data_addr = alu_out;
-	assign data_in = rs2_data;
-
 	assign instr_read = 1;
-
-
-
-
-
-
-
-
-
+	assign instr_addr = pcout;
 	// pipe start
 	// IF net begin
 		// hazard ctrl net begin
@@ -256,6 +69,15 @@ module CPU(
 		wire ID_MenToReg;
 		wire [2:0] ID_ImmType;
 		// control unit net end
+	wire ID_RegWrite_after_mux;
+	wire [2:0] ID_ALUop_after_mux;
+	wire ID_ALUsrc_after_mux;
+	wire [1:0] ID_branchCtrl_after_mux;
+	wire ID_PCtoRegSrc_after_mux;
+	wire ID_RDsrc_after_mux;
+	wire ID_MRead_after_mux;
+	wire ID_MWrite_after_mux;
+	wire ID_MenToReg_after_mux;
 	wire [31:0] ID_instr_out;
 	wire [4:0] ID_rs1;
 	wire [4:0] ID_rs2;
@@ -296,15 +118,9 @@ module CPU(
 		// ALU ctrl net begin
 		wire [3:0] EX_alu_ctrl;
 		// ALU ctrl net end
-	wire EX_RegWrite_after_mux;
-	wire [2:0] EX_ALUop_after_mux;
-	wire EX_ALUsrc_after_mux;
-	wire [1:0] EX_branchCtrl_after_mux;
-	wire EX_PCtoRegSrc_after_mux;
-	wire EX_RDsrc_after_mux;
-	wire EX_MRead_after_mux;
-	wire EX_MWrite_after_mux;
-	wire EX_MenToReg_after_mux;
+		// ALU net begin
+		wire EX_zero;
+		// ALU net end
 	wire [31:0] EX_pc;
 	wire [31:0] EX_rs1_data;
 	wire [31:0] EX_rs2_data;
@@ -314,7 +130,7 @@ module CPU(
 	wire [4:0] EX_rd_addr;
 	wire [4:0] EX_rs1_addr;
 	wire [4:0] EX_rs2_addr;
-	wire [31:0] WB_rd_data;
+	//wire [31:0] WB_rd_data;
 	wire [31:0] MEM_rd_data;
 	wire [31:0] EX_imm;
 	wire [31:0] EX_pc_to_reg;
@@ -327,13 +143,14 @@ module CPU(
 		wire [31:0] EX_mux3_out;
 		wire [31:0] EX_mux4_out;
 		// mux and adder net end
-	wire EX_zero_flag;
 	// EX net end
 	// MEM net begin
 		// control net begin
 		wire MEM_RDsrc;
 		wire MEM_memRead;
 		wire MEM_memWrite;
+		wire MEM_regWrite;
+		wire MEM_mem_to_reg;
 		// control net end
 		// forward unit begin
 		wire forward_rd_src;
@@ -345,7 +162,8 @@ module CPU(
 	wire [4:0] MEM_rd_addr;
 	// MEM net end
 	// WB net begin
-	wire [31:0] WB_rd_data;
+	//wire [31:0] WB_rd_data;
+	wire [31:0] WB_rd_data_pre_mux;
 	wire [31:0] WB_data_out;
 	wire [31:0] WB_mux_out;
 	wire WB_MenToReg;
@@ -354,6 +172,16 @@ module CPU(
 
 	// connect module begin
 	// IF begin
+	assign branch_mux_src1 = EX_alu_out;
+	assign branch_mux_src2 = EX_adder1_out;
+	Mux3to1 pc_mux3to1(
+		.in1(branch_mux_src1),
+		.in2(branch_mux_src2),
+		.in3(branch_mux_src3),
+		.select(BranchCTRL),
+		.out(no_hazard_pcout)
+	);
+
 	PC pc_counter(
 		.clk(clk),
 		.rst(rst),
@@ -414,6 +242,12 @@ module CPU(
 	assign ID_func3 = ID_instr_out[14:12];
 	assign ID_func7 = ID_instr_out[31:25];
 
+	Adder EX_hazard_adder(
+		.src1(ID_pc),
+		.src2(ID_imm),
+		.out(ID_pre_next_pc_adder)
+	);
+
 	ImmGene imm_gene(
 		.immType(ID_ImmType),
 		.instr(ID_instr_out),
@@ -456,24 +290,24 @@ module CPU(
 		
 	Ctrl_mux ctrl_mux(
     	.flush(hazard_ctrl_flush_ctrl),
-    	.PCtoRegSrc_in(EX_PCtoRegSrc),
-    	.branchCtrl_in(EX_branchCtrl),
-    	.aluop_in(EX_ALUop),
-    	.alusrc_in(EX_ALUsrc),
-    	.regWrite_in(EX_RegWrite),
-    	.rdsrc_in(EX_RDsrc),
-    	.memRead_in(EX_MRead),
-    	.memWrite_in(EX_MWrite),
-    	.memToReg_in(EX_MenToReg),
-    	.PCtoRegSrc_out(EX_PCtoRegSrc_after_mux),
-    	.branchCtrl_out(EX_branchCtrl_after_mux),
-    	.aluop_out(EX_ALUop_after_mux),
-    	.alusrc_out(EX_ALUsrc_after_mux),
-    	.regWrite_out(EX_RegWrite_after_mux),
-    	.rdsrc_out(EX_RDsrc_after_mux),
-    	.memRead_out(EX_MRead_after_mux),
-    	.memWrite_out(EX_MWrite_after_mux),
-    	.memToReg_out(EX_MenToReg_after_mux)
+    	.PCtoRegSrc_in(ID_PCtoRegSrc),
+    	.branchCtrl_in(ID_branchCtrl),
+    	.aluop_in(ID_ALUop),
+    	.alusrc_in(ID_ALUsrc),
+    	.regWrite_in(ID_RegWrite),
+    	.rdsrc_in(ID_RDsrc),
+    	.memRead_in(ID_MRead),
+    	.memWrite_in(ID_MWrite),
+    	.memToReg_in(ID_MenToReg),
+    	.PCtoRegSrc_out(ID_PCtoRegSrc_after_mux),
+    	.branchCtrl_out(ID_branchCtrl_after_mux),
+    	.aluop_out(ID_ALUop_after_mux),
+    	.alusrc_out(ID_ALUsrc_after_mux),
+    	.regWrite_out(ID_RegWrite_after_mux),
+    	.rdsrc_out(ID_RDsrc_after_mux),
+    	.memRead_out(ID_MRead_after_mux),
+    	.memWrite_out(ID_MWrite_after_mux),
+    	.memToReg_out(ID_MenToReg_after_mux)
 	);
 	
 	RegFile registerFile(
@@ -488,8 +322,196 @@ module CPU(
 		.op(ID_op),
 		.pc(ID_pc)
 	);
-	// ID end
 
+
+	IDEX_reg IDEXreg(
+    	.clk(clk),
+    	.rs1_data_in(ID_rs1_after_cmp_unit),
+    	.rs2_data_in(ID_rs2_after_cmp_unit),
+    	.imm_in(ID_imm_after_shift_check),
+    	.func3_in(ID_func3),
+    	.func7_in(ID_func7),
+    	.rd_addr_in(ID_rd),
+    	.rs1_addr_in(ID_rs1),
+    	.rs2_addr_in(ID_rs2),
+    	.ID_pc_in(ID_pc),
+    	.PCtoRegSrc_in(ID_PCtoRegSrc),
+    	.branchCtrl_in(ID_branchCtrl),
+    	.aluop_in(ID_ALUop),
+    	.alusrc_in(ID_ALUsrc),
+    	.regWrite_in(ID_RegWrite),
+    	.rdsrc_in(ID_RDsrc),
+    	.memRead_in(ID_MRead),
+    	.memWrite_in(ID_MWrite),
+    	.memToReg_in(ID_MenToReg),
+    	.PCtoRegSrc_out(EX_PCtoRegSrc),
+    	.branchCtrl_out(EX_branchCtrl),
+    	.aluop_out(EX_ALUop),
+    	.alusrc_out(EX_ALUsrc),
+    	.regWrite_out(EX_RegWrite),
+    	.rdsrc_out(EX_RDsrc),
+		.memRead_out(EX_MRead),
+    	.memWrite_out(EX_MWrite),
+   		.memToReg_out(EX_MenToReg),
+    	.rs1_data_out(EX_rs1_data),
+    	.rs2_data_out(EX_rs2_data),
+    	.imm_out(EX_imm),
+    	.func3_out(EX_func3),
+    	.func7_out(EX_func7),
+    	.rd_addr_out(EX_rd_addr),
+    	.rs1_addr_out(EX_rs1_addr),
+    	.rs2_addr_out(EX_rs2_addr),
+    	.ID_pc_out(EX_pc),
+	);
+
+	// ID end
+	 
+	// EX begin
+
+	ForwardUnit frdunit(
+    	.ex_rs1_addr(EX_rs1_addr),
+    	.ex_rs2_addr(EX_rs2_addr),
+    	.EX_MEM_regWrite(MEM_regWrite),
+    	.MEM_WB_regWrite(WB_regWrite),
+    	.EX_MEM_rd(MEM_rd_addr),
+    	.MEM_WB_rd(WB_rd_addr),
+    	.forwardRdSrc(forward_rd_src),
+    	.forwardRs1Src(forward_rs1_src),
+    	.forwardRs2Src(forward_rs2_src) 
+	);
+	BranchCtrl b_ctrl( 
+		.func3(EX_func3),
+		.zero(EX_zero),
+		.btype(EX_branchCtrl),
+		.alu_out(EX_alu_out),
+		.b_ctrl(BranchCTRL)
+	);
+
+	BigALU big_alu(
+		.src1(EX_mux2_out),
+		.src2(EX_mux4_out),
+		.alu_ctrl(EX_alu_ctrl),
+		.zero(EX_zero),
+		.alu_out(EX_alu_out)
+	);
+
+	ALU_ctrl ALUctrl(
+		.func3(EX_func3),
+		.func7(EX_func7),
+		.alu_op(EX_ALUop),
+		.alu_ctrl(EX_alu_ctrl)
+	);
+
+	Adder add1(
+		.src1(EX_pc),
+		.src2(EX_imm),
+		.out(EX_adder1_out)
+	);
+
+	Adder add2(
+		.src1(EX_pc),
+		.src2(four),
+		.out(EX_adder2_out)
+	);
+
+	Mux2to1 ex_mux1(
+		.in1(EX_adder1_out),
+		.in2(EX_adder2_out),
+		.select(EX_PCtoRegSrc),
+		.out(EX_mux1_out)
+	);
+
+	Mux2to1 ex_mux4(
+		.in1(EX_mux3_out),
+		.in2(EX_imm),
+		.select(EX_ALUsrc),
+		.out(EX_mux4_out)
+	);
+ 
+	Mux3to1 ex_mux2(
+		.in1(EX_rs1_data),
+		.in2(MEM_rd_data),
+		.in3(WB_rd_data),
+		.select(forward_rs1_src),
+		.out(EX_mux2_out)
+	);
+
+	Mux3to1 ex_mux3(
+		.in1(EX_rs2_data),
+		.in2(MEM_rd_data),
+		.in3(WB_rd_data),
+		.select(forward_rs1_src),
+		.out(EX_mux3_out)
+	);
+
+
+	assign EX_pc_to_reg = EX_mux1_out;
+	EXMEM_reg EXMEMreg(
+    	.clk(clk),
+    	.PcToReg_in(EX_pc_to_reg),
+    	.alu_out_in(EX_alu_out),
+    	.EX_forward_rs2_data_in(EX_mux3_out),
+    	.EX_rd_addr_in(EX_rd_addr),
+    	.rd_src_in(EX_RDsrc),
+    	.memRead_in(EX_MRead),
+    	.memWrite_in(EX_MWrite),
+    	.memToReg_in(EX_MenToReg),
+    	.regWrite_in(EX_RegWrite),
+    	.PcToReg_out(MEM_pc_to_reg),
+    	.alu_out_out(MEM_alu_out),
+    	.EX_forward_rs2_data_out(MEM_forward_rs2_data),
+   		.EX_rd_addr_out(MEM_rd_addr),
+   		.rd_src_out(MEM_RDsrc),
+    	.memRead_out(MEM_memRead),
+    	.memWrite_out(MEM_memWrite),
+    	.memToReg_out(MEM_mem_to_reg),
+    	.regWrite_out(MEM_regWrite)
+	);
+ 
+	// EX end
+
+	// MEM begin
+	assign data_addr = MEM_alu_out;
+	assign data_read = MEM_memRead;
+	assign data_write = MEM_memWrite;
+
+	Mux2to1 mem_mux5(
+		.in1(MEM_pc_to_reg),
+		.in2(MEM_alu_out),
+		.select(MEM_RDsrc),
+		.out(MEM_rd_data)
+	);	
+
+	Mux2to1 mem_mux6(
+		.in1(MEM_forward_rs2_data),
+		.in2(WB_rd_data),
+		.select(forward_rd_src),
+		.out(data_in)
+	);	
+
+	MEMWB_reg MEMWBreg(
+    	.clk(clk),
+    	.mem_rd_data_in(MEM_rd_data),
+    	.data_in(data_out),
+    	.mem_rd_addr_in(MEM_rd_addr),
+    	.memToReg_in(MEM_mem_to_reg),
+    	.regWrite_in(MEM_regWrite),
+    	.mem_rd_data_out(WB_rd_data_pre_mux),
+    	.data_out(WB_data_out),
+    	.mem_rd_addr_out(WB_rd_addr),
+    	.memToReg_out(WB_MenToReg),
+   		.regWrite_out(WB_regWrite)
+	);
+
+	// MEM end
+	// WB begin
+	Mux2to1 wb_mux7(
+		.in1(WB_rd_data_pre_mux),
+		.in2(WB_data_out),
+		.select(WB_MenToReg),
+		.out(WB_rd_data)
+	);	
+	// WB end
 	//connect module end
 
 	// pipe end

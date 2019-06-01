@@ -1,6 +1,6 @@
 `timescale 1ns/10ps
 `define CYCLE 10.0 // Cycle time
-`define MAX 200//100000 // Max cycle number
+`define MAX 100000 // Max cycle number
 `define mem_word(addr) \
   {TOP.i_DM.Memory_byte3[addr], \
    TOP.i_DM.Memory_byte2[addr], \
